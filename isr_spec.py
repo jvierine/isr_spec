@@ -105,7 +105,7 @@ def gordoyev2(om,
     return(sint)
 
 # evaluate gordoyev integral on a number of frequencies
-def gordoyev(om,n_points=1e4,f=430e6,m=c.electron_mass,T=3000.0,B=0.0,alpha=0.0,inf=1e-3):
+def gordoyev(om,n_points=1e4,f=430e6,m=c.electron_mass,T=3000.0,B=0.0,alpha=0.0,nu_cc=0,inf=1e-3):
     res=n.zeros(len(om),dtype=n.complex128)
     for omi,o in enumerate(om):
         print(omi)
@@ -213,7 +213,7 @@ def spec_test():
     print(prf(ne,430e6,1500.0))
     pl_freq = 2.0*n.pi*prf(ne,430e6,1500.0)
     om0 = 0.0
-    om = n.linspace(om0-2e6*2.0*n.pi,om0+2e6*2.0*n.pi,num=1000.0)
+    om = n.linspace(om0-2e6*2.0*n.pi,om0+2e6*2.0*n.pi,num=1000)
     spec=isr_spectrum(om,plpar=plpar,n_points=1e4)
     print(spec)
     spec=(spec/n.nanmax(spec))*230.0
@@ -231,14 +231,14 @@ def spec_test():
 
 # try to see if 
 def gl_test():
-    plpar={"t_i":[200.0,200.0],
+    plpar={"t_i":[200.0],
            "t_e":200.0,
-           "m_i":[16.0,32.0],
+           "m_i":[1.0],
            "n_e":2e10,
            "freq":430e6,
            "B":35000e-9,
            "alpha":45.0,
-           "ion_fractions":[0.2,0.8]}
+           "ion_fractions":[1.0]}
 
     ne=plpar["n_e"]
     pfreq=pf(ne)*2.0*n.pi
@@ -246,20 +246,32 @@ def gl_test():
     print(prf(ne,430e6,1500.0))
     pl_freq = 2.0*n.pi*prf(ne,430e6,1500.0)
     om0 = 0.0
-    om = n.linspace(om0-2e6*2.0*n.pi,om0+2e6*2.0*n.pi,num=1000.0)
-    spec=isr_spectrum(om,plpar=plpar,n_points=1e4)
-    print(spec)
-    spec=(spec/n.nanmax(spec))*230.0
+    om = n.linspace(om0-2e6*3.5*n.pi,om0+2e6*3.5*n.pi,num=10000)
 
-#    f1 = om/2.0/n.pi
- #   f_idx = n.where(n.abs(f1) < 150e3)[0]
-  #  spec[f_idx]=0.0
-   # print(n.sum(spec.real))  
-    
-    plt.plot(om/2.0/n.pi,10.0*n.log10(spec))
-    plt.ylim([-15,25])
+    spec0=isr_spectrum(om,plpar=plpar,n_points=1e4)
+    t_r=2.0
+    t_is=[250,500,1000,1500,2000]
+    for i in range(len(t_is)):
+        plpar={"t_i":[t_is[i]],
+               "t_e":t_is[i]*t_r,
+               "m_i":[1.0],
+               "n_e":2e10,
+               "freq":430e6,
+               "B":35000e-9,
+               "alpha":45.0,
+               "ion_fractions":[1.0]}
 
-    
+        spec1=isr_spectrum(om,plpar=plpar,n_points=1e4)
+        spec1=spec1/n.max(spec1)
+        plt.plot(om/2.0/n.pi/1e6,10.0*n.log10(spec1),label="$T_e=%1.0f$ (K)"%(t_is[i]*t_r))
+    plt.title("$N_e=2\cdot 10^{10}$ (m$^{-3}$) $m_i=%1.0f$ (amu) B=35000 nT $\\theta=45^{\circ}$ $T_e/T_i=2$"%(plpar["m_i"][0]))
+
+    plt.ylabel("Power spectral density (dB)")
+    plt.xlabel("Doppler shift (MHz)")
+    plt.legend()
+    plt.ylim([-50,2])
+    plt.tight_layout()
+    plt.savefig("ts_spec.png",dpi=400)
     plt.show()
     
 # test to see what type of a grid is needed to resolve the plasma-line
@@ -356,7 +368,7 @@ def pl_test2():
   #  
 
 
-  # test to see what type of a grid is needed to resolve the plasma-line
+# ion-line spectrum
 def il_test():
     ne=3e11
 
@@ -378,64 +390,80 @@ def il_test():
     h.close()
     sf=100.0/n.max(il_spec)
 
-    plt.figure(figsize=(10,6))
+ #   plt.figure(figsize=(10,6))
     
-    plt.subplot(121)
+# 99   plt.subplot(121)
     plt.plot(om/2.0/n.pi/1e3,sf*il_spec)
     plt.xlabel("Doppler shift (kHz)")
     plt.ylabel("$S(\omega)$")
     plt.xlim([-20,20])
+
+    plpar={"t_i":[2000.0],
+           "t_e":4000.0,
+           "m_i":[16.0],
+           "n_e":ne,
+           "freq":500e6,
+           "B":25000e-9,
+           "alpha":90.0,
+           "ion_fractions":[1.0]}
+
+    il_spec2=isr_spectrum(om,plpar=plpar,n_points=1e4)
+    il_spec2=n.roll(il_spec2,10)
+
+    plt.plot(om/2.0/n.pi/1e3,sf*il_spec2)    
+#    plt.plot(
     
     plt.title("Power spectrum\n$m_i=%d$ (amu), $T_e=%1.2f$ $T_i=%1.0f$ K\n$f=%1.0f$ MHz $v_i=%1.2f$ m/s"%(plpar["m_i"][0],plpar["t_e"],plpar["t_i"][0],plpar["freq"]/1e6,200.0))
-
-
-    plt.subplot(122)
-    acf=n.fft.fftshift(n.fft.fft(n.fft.fftshift(sf*il_spec)))
-    
-    freqs=om/2.0/n.pi
-    dt=1.0/((n.max(freqs)-n.min(freqs)))
-    tau=n.linspace(-dt*len(acf),dt*len(acf),num=len(acf))
-
-
-    plt.plot(tau*1e6,acf.real,label="Re")
-    plt.plot(tau*1e6,acf.imag,label="Im")
-    plt.legend()
-    plt.xlim([-1000,1000])
-    plt.xlabel("Lag ($\mu s$)")
-    plt.ylabel("$R(\\tau)$")
-    plt.title("Autocorrelation function")
-    plt.tight_layout()
-    plt.savefig("ilex.png")
     plt.show()
 
+    if False:
+        plt.subplot(122)
+        acf=n.fft.fftshift(n.fft.fft(n.fft.fftshift(sf*il_spec)))
+        
+        freqs=om/2.0/n.pi
+        dt=1.0/((n.max(freqs)-n.min(freqs)))
+        tau=n.linspace(-dt*len(acf),dt*len(acf),num=len(acf))
+        
+        
+        plt.plot(tau*1e6,acf.real,label="Re")
+        plt.plot(tau*1e6,acf.imag,label="Im")
+        plt.legend()
+        plt.xlim([-1000,1000])
+        plt.xlabel("Lag ($\mu s$)")
+        plt.ylabel("$R(\\tau)$")
+        plt.title("Autocorrelation function")
+        plt.tight_layout()
+        plt.savefig("ilex.png")
+        plt.show()
 
-    isr_process=n.fft.ifft(n.fft.fft(n.fft.fftshift(n.sqrt(il_spec)))*n.fft.fft(n.random.randn(len(il_spec))+n.random.randn(len(il_spec))*1j))
 
-    plt.figure(figsize=(10,6))
-    t=n.arange(len(isr_process))*dt*1e6
-    plt.subplot(121)
-    isr_process=isr_process/n.max(n.abs(isr_process))
-    plt.plot(t,isr_process.real)
-    plt.plot(t,isr_process.imag)
-    plt.xlabel("Time ($\mu s$)")
-    plt.ylabel("$V(t)$")
-    plt.title("Ionospheric echo")
-    plt.ylim([-1,1])
+        isr_process=n.fft.ifft(n.fft.fft(n.fft.fftshift(n.sqrt(il_spec)))*n.fft.fft(n.random.randn(len(il_spec))+n.random.randn(len(il_spec))*1j))
 
-    plt.subplot(122)
-    xi=n.random.randn(len(isr_process))+n.random.randn(len(isr_process))*1j
-    xi=xi/n.max(n.abs(xi))
-    plt.plot(t,xi.real)
-    plt.plot(t,xi.imag)
-    plt.xlabel("Time ($\mu s$)")
-    plt.ylabel("$\\xi(t)$")
-    plt.title("Receiver noise")
-    plt.tight_layout()
-    plt.savefig("echo_noise.png")
-    plt.ylim([-1,1])
+        plt.figure(figsize=(10,6))
+        t=n.arange(len(isr_process))*dt*1e6
+        plt.subplot(121)
+        isr_process=isr_process/n.max(n.abs(isr_process))
+        plt.plot(t,isr_process.real)
+        plt.plot(t,isr_process.imag)
+        plt.xlabel("Time ($\mu s$)")
+        plt.ylabel("$V(t)$")
+        plt.title("Ionospheric echo")
+        plt.ylim([-1,1])
+        
+        plt.subplot(122)
+        xi=n.random.randn(len(isr_process))+n.random.randn(len(isr_process))*1j
+        xi=xi/n.max(n.abs(xi))
+        plt.plot(t,xi.real)
+        plt.plot(t,xi.imag)
+        plt.xlabel("Time ($\mu s$)")
+        plt.ylabel("$\\xi(t)$")
+        plt.title("Receiver noise")
+        plt.tight_layout()
+        plt.savefig("echo_noise.png")
+        plt.ylim([-1,1])
     
     
-    plt.show()
+        plt.show()
     
 
 def il_test2():
@@ -498,9 +526,99 @@ def il_amb():
     plt.tight_layout()
     plt.savefig("il_amb.png")
     plt.show()
+
+
+  # test to see what type of a grid is needed to resolve the plasma-line
+def il_d():
+    # 42 dB
+    # 1 MW peak transmit power
+    # lambda/D = opening angle
+    # T = 250 K
+    # f=224 MHz
+    ne=3e11
+
+    plpar={"t_i":[2000.0],
+           "t_e":2000.0,
+           "m_i":[32.0],
+           "n_e":ne,
+           "freq":224e6,
+           "B":51000e-9,
+           "alpha":90.0, # degrees, 0 deg is perp
+           "ion_fractions":[1.0]}
+
+
+    om = n.linspace(-1.2*40e3*2.0*n.pi,1.2*40e3*2.0*n.pi,num=1000)
+    il_spec=isr_spectrum(om,plpar=plpar,n_points=1e4)
+    il_spec=n.roll(il_spec,10)
+    h=h5py.File("ilspec.h5","w")
+    h["spec"]=il_spec
+    h["om"]=om
+    h.close()
+    sf=100.0/n.max(il_spec)
+
+    plt.figure(figsize=(10,6))
+    
+    plt.subplot(121)
+    plt.plot(om/2.0/n.pi/1e3,sf*il_spec)
+    plt.xlabel("Doppler shift (kHz)")
+    plt.ylabel("$S(\omega)$")
+    plt.xlim([-20,20])
+    
+    plt.title("Power spectrum\n$m_i=%d$ (amu), $T_e=%1.2f$ $T_i=%1.0f$ K\n$f=%1.0f$ MHz $v_i=%1.2f$ m/s"%(plpar["m_i"][0],plpar["t_e"],plpar["t_i"][0],plpar["freq"]/1e6,200.0))
+
+
+    plt.subplot(122)
+    acf=n.fft.fftshift(n.fft.fft(n.fft.fftshift(sf*il_spec)))
+    
+    freqs=om/2.0/n.pi
+    dt=1.0/((n.max(freqs)-n.min(freqs)))
+    tau=n.linspace(-dt*len(acf),dt*len(acf),num=len(acf))
+
+
+    plt.plot(tau*1e6,acf.real,label="Re")
+    plt.plot(tau*1e6,acf.imag,label="Im")
+    plt.legend()
+    plt.xlim([-1000,1000])
+    plt.xlabel("Lag ($\mu s$)")
+    plt.ylabel("$R(\\tau)$")
+    plt.title("Autocorrelation function")
+    plt.tight_layout()
+    plt.savefig("ilex.png")
+    plt.show()
+
+    # demo ISR spectrum
+    isr_process=n.fft.ifft(n.fft.fft(n.fft.fftshift(n.sqrt(il_spec)))*n.fft.fft(n.random.randn(len(il_spec))+n.random.randn(len(il_spec))*1j))
+
+    plt.figure(figsize=(10,6))
+    t=n.arange(len(isr_process))*dt*1e6
+    plt.subplot(121)
+    isr_process=isr_process/n.max(n.abs(isr_process))
+    plt.plot(t,isr_process.real)
+    plt.plot(t,isr_process.imag)
+    plt.xlabel("Time ($\mu s$)")
+    plt.ylabel("$V(t)$")
+    plt.title("Ionospheric echo")
+    plt.ylim([-1,1])
+
+    plt.subplot(122)
+    xi=n.random.randn(len(isr_process))+n.random.randn(len(isr_process))*1j
+    xi=xi/n.max(n.abs(xi))
+    plt.plot(t,xi.real)
+    plt.plot(t,xi.imag)
+    plt.xlabel("Time ($\mu s$)")
+    plt.ylabel("$\\xi(t)$")
+    plt.title("Receiver noise")
+    plt.tight_layout()
+    plt.savefig("echo_noise.png")
+    plt.ylim([-1,1])
+    
+    
+    plt.show()
+
     
   
 if __name__ == "__main__":
+    gl_test()            
 #    pl_test()        
  #   pl_test2()    
   #  il_amb()
@@ -508,7 +626,7 @@ if __name__ == "__main__":
     il_test()
    # il_test2()                
 
-    #gl_test()            
+   
     #pl_test()        
     #spec_test()
     
