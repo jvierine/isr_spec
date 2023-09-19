@@ -79,7 +79,7 @@ def gaussian_disp(tau,k,T=2000.0,m=c.electron_mass,alpha=None,B=None,nu_cc=None)
 #   tau=n.linspace(0,n.sqrt(tau_inf))**2.0
 # - 
 def gordoyev2(om,
-              n_points=1000.0,
+              n_points=1000,
               f=430e6,
               m=c.electron_mass,
               T=3000.0,
@@ -108,7 +108,7 @@ def gordoyev2(om,
 def gordoyev(om,n_points=1e4,f=430e6,m=c.electron_mass,T=3000.0,B=0.0,alpha=0.0,nu_cc=0,inf=1e-3):
     res=n.zeros(len(om),dtype=n.complex128)
     for omi,o in enumerate(om):
-        print(omi)
+#        print(omi)
         res[omi] = gordoyev2(o,n_points=n_points,f=f,m=m,T=T,alpha=alpha,B=B,inf=inf)
     return(res)
 
@@ -150,8 +150,8 @@ def isr_spectrum(om,plpar=None,n_points=1e4,ni_points=1e4):
     k = -2.0*2.0*n.pi*f/c.c
     
     nu_ei,nu_ee = coulomb_collision_freq(n_e,t_e)
-    print("nu_ei ",nu_ei)
-    print("nu_ee ",nu_ee)    
+#    print("nu_ei ",nu_ei)
+ #   print("nu_ee ",nu_ee)    
     J_e = gordoyev(om,f=f,T=t_e,m=c.electron_mass,n_points=n_points,alpha=alpha,B=B,inf=1e-4)
     n_te2 = n_e*2.0*n.real(J_e)    
     J_i = []
@@ -171,7 +171,7 @@ def isr_spectrum(om,plpar=None,n_points=1e4,ni_points=1e4):
     il = ((n.abs(1.0j*om*c.epsilon_0 + sigma_i)**2.0)*n_te2)/(n.abs(1.0j*om*c.epsilon_0 + sigma_e + sigma_i)**2.0)
     pl = ((n.abs(sigma_e)**2.0)*n_ti2)/(n.abs(1.0j*om*c.epsilon_0 + sigma_e + sigma_i)**2.0)
 
-    return(pl + il)
+    return(n.real(pl + il))
  
 def pf(ne):
     return(n.sqrt(ne*c.e**2.0/(c.electron_mass*c.epsilon_0))/2.0/n.pi)
@@ -248,7 +248,7 @@ def gl_test():
     om0 = 0.0
     om = n.linspace(om0-2e6*3.5*n.pi,om0+2e6*3.5*n.pi,num=10000)
 
-    spec0=isr_spectrum(om,plpar=plpar,n_points=1e4)
+    spec0=isr_spectrum(om,plpar=plpar,n_points=1e3)
     t_r=2.0
     t_is=[250,500,1000,1500,2000]
     for i in range(len(t_is)):
@@ -261,7 +261,7 @@ def gl_test():
                "alpha":45.0,
                "ion_fractions":[1.0]}
 
-        spec1=isr_spectrum(om,plpar=plpar,n_points=1e4)
+        spec1=isr_spectrum(om,plpar=plpar,n_points=1e3)
         spec1=spec1/n.max(spec1)
         plt.plot(om/2.0/n.pi/1e6,10.0*n.log10(spec1),label="$T_e=%1.0f$ (K)"%(t_is[i]*t_r))
     plt.title("$N_e=2\cdot 10^{10}$ (m$^{-3}$) $m_i=%1.0f$ (amu) B=35000 nT $\\theta=45^{\circ}$ $T_e/T_i=2$"%(plpar["m_i"][0]))
@@ -615,9 +615,74 @@ def il_d():
     
     plt.show()
 
+
+def il_table():
+    """
+    Create an interpolation table for ion-line spectra, given a range of plasma-parameters.
+    """
+    n_tr=40
+    n_fr=40
+    n_ti=160
+
+    n_freq=200
+
+    te_ti_ratios=n.linspace(1,5,num=n_tr)
+    tis=n.linspace(100,2000,num=n_ti)    
+    frs=n.linspace(0,1,num=n_fr)
+
+    ne=1e12
+    om = n.linspace(-n.pi*30e3, n.pi*30e3, num=n_freq)
+    S=n.zeros([n_fr,n_tr,n_ti,n_freq],dtype=n.float32)
+
+    P=n.zeros([n_fr,n_tr,n_ti],dtype=n.float32)
+    ppar=n.zeros([n_fr,n_tr,n_ti,3],dtype=n.float32)        
+    
+    for idx,tr in enumerate(te_ti_ratios):
+        print(idx)
+        for fridx,fr in enumerate(frs):
+            if fr == 0:
+                fr=1e-4
+            if fr == 1:
+                fr=1-1e-4
+            n_mol=fr
+            n_atom=1-fr
+            
+            for tiidx,ti in enumerate(tis):
+                te=tr*ti
+                plpar={"t_i":[ti,ti],
+                       "t_e":te,
+                       "m_i":[31.0,16.0],
+                       "n_e":1e11,
+                       "freq":440.2e6,
+                       "B":45000e-9,
+                       "alpha":90, # degrees, 0 deg is perp. ion-line insensitive to alpha when alpha not close to 0
+                       "ion_fractions":[n_mol,n_atom]}
+                    
+                il_spec=isr_spectrum(om,plpar=plpar,n_points=1e2,ni_points=1e2)
+                S[fridx,idx,tiidx,:]=il_spec
+                P[fridx,idx,tiidx]=n.sum(il_spec)
+    ho=h5py.File("ion_line_interpolate.h5","w")
+    ho["S"]=S
+    ho["te_ti_ratios"]=te_ti_ratios
+    ho["mol_fracs"]=frs
+    ho["tis"]=tis
+    ho["om"]=om
+    ho["freq"]=440.2e6
+    ho["B"]=45000e-9
+    ho["ne"]=1e11
+    ho.close()
+    
+
+ #   plt.pcolormesh(S[fridx,idx,:,:])
+  #  plt.colorbar()
+   # plt.show()
+
     
   
 if __name__ == "__main__":
+    il_table()
+    exit(0)
+    
     gl_test()            
 #    pl_test()        
  #   pl_test2()    
