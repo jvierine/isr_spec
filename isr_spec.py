@@ -633,9 +633,12 @@ def il_table():
     #
     #om = n.linspace(-n.pi*30e3, n.pi*30e3, num=n_freq)
 
-    # 60 kHz bandwidth
+    # 60 kHz bandwidth. Enough for all? Might need more for hot H+
     # Make spectrum easy to ifft to get ACF
-    om=n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/60e3))
+    # offset by 1e-6 to avoid division by zero. nobody will every notice
+    # the 1 microhertz doppler bias.
+    #
+    om=2*n.pi*n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/60e3))+1e-6
     
     S=n.zeros([n_fr,n_tr,n_ti,n_freq],dtype=n.float32)
 

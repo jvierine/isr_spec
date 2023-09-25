@@ -35,9 +35,12 @@ class ilint:
                 for ti_i in range(self.tisN):
                     print(self.angular_doppler)
                     spec=self.S[fr_i,teti_i,ti_i,:]
+                    nan_idx=n.where(n.isnan(spec))[0]
+                    if len(nan_idx) > 0:
+                        spec[nan_idx]=0.5*(spec[nan_idx-1]+spec[nan_idx+1])
                     plt.plot(spec)
                     plt.show()
-                    acf=n.fft.ifft(n.fft.fftshift(self.S[fr_i,teti_i,ti_i,:]))
+                    acf=n.fft.ifft(n.fft.fftshift(spec))
                     plt.plot(acf.real)
                     plt.plot(acf.imag)                    
                     plt.show()
