@@ -637,7 +637,6 @@ def il_table():
     # Make spectrum easy to ifft to get ACF
     om=n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/60e3))
     
-    
     S=n.zeros([n_fr,n_tr,n_ti,n_freq],dtype=n.float32)
 
     P=n.zeros([n_fr,n_tr,n_ti],dtype=n.float32)
@@ -673,6 +672,7 @@ def il_table():
     ho["mol_fracs"]=frs
     ho["tis"]=tis
     ho["om"]=om
+    ho["sample_rate"]=60e3
     ho["freq"]=440.2e6
     ho["B"]=45000e-9
     ho["ne"]=1e11
