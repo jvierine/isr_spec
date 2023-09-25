@@ -624,14 +624,20 @@ def il_table():
     n_fr=40
     n_ti=160
 
-    n_freq=200
+    n_freq=512
 
     te_ti_ratios=n.linspace(1,5,num=n_tr)
     tis=n.linspace(100,2000,num=n_ti)    
     frs=n.linspace(0,1,num=n_fr)
 
-    ne=1e12
-    om = n.linspace(-n.pi*30e3, n.pi*30e3, num=n_freq)
+    #
+    #om = n.linspace(-n.pi*30e3, n.pi*30e3, num=n_freq)
+
+    # 60 kHz bandwidth
+    # Make spectrum easy to ifft to get ACF
+    om=n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/60e3))
+    
+    
     S=n.zeros([n_fr,n_tr,n_ti,n_freq],dtype=n.float32)
 
     P=n.zeros([n_fr,n_tr,n_ti],dtype=n.float32)
@@ -673,9 +679,7 @@ def il_table():
     ho.close()
     
 
- #   plt.pcolormesh(S[fridx,idx,:,:])
-  #  plt.colorbar()
-   # plt.show()
+
 
     
   
