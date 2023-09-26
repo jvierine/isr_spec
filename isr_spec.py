@@ -6,6 +6,11 @@ import matplotlib.pyplot as plt
 import scipy.integrate as si
 import h5py
 
+from mpi4py import MPI
+comm=MPI.COMM_WORLD
+size=comm.Get_size()
+rank=comm.Get_rank()
+
 def gordoyev_integrand(tau,k,T,m,alpha,B,nu_cc):#,phi,psin,psic_par,psic_perp):
     """
     input parameters are a list containing:
@@ -627,7 +632,7 @@ def il_table():
     n_freq=512
 
     te_ti_ratios=n.linspace(1,5,num=n_tr)
-    tis=n.linspace(100,2000,num=n_ti)    
+    tis=n.linspace(50,4000,num=n_ti)    
     frs=n.linspace(0,1,num=n_fr)
 
     #
@@ -638,22 +643,24 @@ def il_table():
     # offset by 1e-6 to avoid division by zero. nobody will every notice
     # the 1 microhertz doppler bias.
     #
-    om=2*n.pi*n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/60e3))+1e-6
+    om=2*n.pi*n.fft.fftshift(n.fft.fftfreq(n_freq,d=1/200e3))+1e-6
     
     S=n.zeros([n_fr,n_tr,n_ti,n_freq],dtype=n.float32)
-
+    S[:,:,:,:]=n.nan
     P=n.zeros([n_fr,n_tr,n_ti],dtype=n.float32)
     ppar=n.zeros([n_fr,n_tr,n_ti,3],dtype=n.float32)        
+
+    for fridx in range(rank,len(frs),size):
+        print(fridx)
+        fr=frs[fridx]
+        if fr == 0:
+            fr=1e-4
+        if fr == 1:
+            fr=1-1e-4
+        n_mol=fr
+        n_atom=1-fr
     
-    for idx,tr in enumerate(te_ti_ratios):
-        print(idx)
-        for fridx,fr in enumerate(frs):
-            if fr == 0:
-                fr=1e-4
-            if fr == 1:
-                fr=1-1e-4
-            n_mol=fr
-            n_atom=1-fr
+        for idx,tr in enumerate(te_ti_ratios):
             
             for tiidx,ti in enumerate(tis):
                 te=tr*ti
@@ -669,7 +676,7 @@ def il_table():
                 il_spec=isr_spectrum(om,plpar=plpar,n_points=1e2,ni_points=1e2)
                 S[fridx,idx,tiidx,:]=il_spec
                 P[fridx,idx,tiidx]=n.sum(il_spec)
-    ho=h5py.File("ion_line_interpolate.h5","w")
+    ho=h5py.File("ion_line_interpolate_%02d.h5"%(rank),"w")
     ho["S"]=S
     ho["te_ti_ratios"]=te_ti_ratios
     ho["mol_fracs"]=frs
