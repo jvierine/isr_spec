@@ -627,7 +627,7 @@ def il_table():
     """
     n_tr=40
     n_fr=40
-    n_ti=160
+    n_ti=400
 
     n_freq=512
 
