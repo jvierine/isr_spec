@@ -621,13 +621,14 @@ def il_d():
     plt.show()
 
 
-def il_table():
+def il_table(mass0=16.0, mass1=1.0):
     """
     Create an interpolation table for ion-line spectra, given a range of plasma-parameters.
+    2-ion isr spec
     """
     n_tr=40
     n_fr=40
-    n_ti=400
+    n_ti=160
 
     n_freq=512
 
@@ -666,7 +667,7 @@ def il_table():
                 te=tr*ti
                 plpar={"t_i":[ti,ti],
                        "t_e":te,
-                       "m_i":[31.0,16.0],
+                       "m_i":[mass0,mass1],
                        "n_e":1e11,
                        "freq":440.2e6,
                        "B":45000e-9,
@@ -676,8 +677,10 @@ def il_table():
                 il_spec=isr_spectrum(om,plpar=plpar,n_points=1e2,ni_points=1e2)
                 S[fridx,idx,tiidx,:]=il_spec
                 P[fridx,idx,tiidx]=n.sum(il_spec)
-    ho=h5py.File("ion_line_interpolate_%02d.h5"%(rank),"w")
+    ho=h5py.File("ion_line_interpolate_%d_%d_%02d.h5"%(mass0,mass1,rank),"w")
     ho["S"]=S
+    ho["mass0"]=mass0
+    ho["mass1"]=mass1
     ho["te_ti_ratios"]=te_ti_ratios
     ho["mol_fracs"]=frs
     ho["tis"]=tis
