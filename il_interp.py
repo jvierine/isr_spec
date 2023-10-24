@@ -7,6 +7,7 @@ class ilint:
         h=h5py.File(fname,"r")
         self.S=h["S"][()]   # 3d array molecular to atomic fraction x te/ti x ti
 
+        
         self.te_ti_ratio=h["te_ti_ratios"][()]
         self.dte_ti_ratio=n.diff(self.te_ti_ratio)[0]
         self.te_ti_ratio0=n.min(self.te_ti_ratio)
@@ -33,6 +34,9 @@ class ilint:
         self.n_fft=self.S.shape[3]
         self.n_lags=int(self.S.shape[3]/2)
         self.lag=n.arange(self.n_lags)/self.sr
+
+
+        self.S[:,:,:,n.abs(self.doppler_hz)>40e3]=0.0
         
         create_acfs=False
         if "A" in h.keys():
@@ -42,6 +46,7 @@ class ilint:
         h.close()
 
         if create_acfs:
+
             print("Creating acfs")
             self.A=n.zeros([self.S.shape[0],self.S.shape[1],self.S.shape[2],self.n_lags],dtype=n.complex64)
             # calculate acfs
@@ -50,14 +55,21 @@ class ilint:
                 for teti_i in range(self.te_ti_ratioN):
                     for ti_i in range(self.tisN):
                         spec=self.S[fr_i,teti_i,ti_i,:]
+
+                        spec[n.abs(self.doppler_hz)>40e3]=0.0
                         nan_idx=n.where(n.isnan(spec))[0]
                         if len(nan_idx) > 0:
+                            print("nans in")
+                            print(self.tis[ti_i])
+                            continue
                             spec[nan_idx]=0.5*(spec[nan_idx-1]+spec[nan_idx+1])
 
                         acf=n.fft.ifft(n.fft.fftshift(spec))
                         self.A[fr_i,teti_i,ti_i,:]=acf[0:self.n_lags]
             h=h5py.File(fname,"a")
             print("storing acfs")
+            if "A" in h.keys():
+                del(h["A"])
             h["A"]=self.A
             h.close()
 
@@ -71,6 +83,7 @@ class ilint:
                 mol_frac=n.array([1.0]),
                 vi=n.array([0.0]),
                 acf=False,
+                normalize=True,
                 debug=False):
         te_ti_ratio_idx=(te/ti - self.te_ti_ratio0)/self.dte_ti_ratio
         # edge cases
@@ -103,8 +116,6 @@ class ilint:
             S=n.zeros([len(ne),self.S.shape[3]],dtype=n.float32)
             L=self.S            
 
-        
-            
         # for all parameter triplets
         for i in range(len(ne)):
             w00=1.0-(mol_frac_idx[i]-n.floor(mol_frac_idx[i]))  # how close to floor [0,1]
@@ -152,8 +163,16 @@ class ilint:
             w7=w01*w11*w21
             S[i,:] += w7*L[int(n.ceil(mol_frac_idx[i])), int(n.ceil(te_ti_ratio_idx[i])), int(n.ceil(ti_idx[i])), :]
             
-            S[i,:]=pwr_scaling_factor[i]*S[i,:]/(w0+w1+w2+w3+w4+w5+w6+w7)
+            S[i,:]=S[i,:]/(w0+w1+w2+w3+w4+w5+w6+w7)
             
+            if normalize:
+                if acf:
+                    S[i,:]=S[i,:]/S[i,0].real
+                else:
+                    S[i,:]=S[i,:]/n.max(S[i,])
+            else:
+                S[i,:]=pwr_scaling_factor[i]*S[i,:]
+
         return(S)
         
 
@@ -220,7 +239,7 @@ def testte():
 def testti():
     il=ilint()
     ne=n.repeat(1e12,100)
-    ti=n.linspace(500,2000,num=100)
+    ti=n.linspace(100,3000,num=100)
     te=n.copy(ti)
     mol_frac=n.repeat(0.0,100)
     vi=n.repeat(0,100)
@@ -241,7 +260,7 @@ def testti():
 
     plt.subplot(121)
     plt.pcolormesh(il.lag*1e6,ti,A.real)
-    plt.xlim([0,500])
+    plt.xlim([0,1000])
     plt.xlabel("Lag (us)")
     plt.ylabel("T_i (K)")    
     plt.colorbar()
@@ -252,9 +271,94 @@ def testti():
     plt.colorbar()
     plt.tight_layout()    
     plt.show()
-    
 
+def test_h():
+    il=ilint(fname="ion_line_interpolate_h_o.h5")
+    ne=n.repeat(1e12,100)
+    ti=n.repeat(1500,100)
+    te=n.repeat(2000,100)    
+    mol_frac=n.linspace(0,1,num=100)
+    vi=n.repeat(0,100)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False
+                 )
+    plt.subplot(121)
+    plt.pcolormesh(il.doppler_hz/1e3,mol_frac,S)
+    plt.ylabel("O+ fraction")
+    plt.xlabel("Doppler (kHz)")
+    plt.colorbar()
+
+    ne=n.repeat(1e12,100)
+    ti=n.repeat(1500,100)
+    te=n.linspace(1500,4000,100)    
+    mol_frac=n.repeat(1,100)
+    vi=n.repeat(0,100)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False
+                 )
+    plt.subplot(122)
+    plt.pcolormesh(il.doppler_hz/1e3,te,S)
+    plt.ylabel("Te")
+    plt.xlabel("Doppler (kHz)")
+    plt.colorbar()
+    plt.show()
+
+
+
+    ne=n.repeat(1e12,100)
+    ti=n.repeat(1500,100)
+    te=n.repeat(2000,100)    
+    mol_frac=n.linspace(0,1,num=100)
+    vi=n.repeat(0,100)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=True
+                 )
+    plt.subplot(121)
+    plt.pcolormesh(il.lag*1e6,mol_frac,S.real)
+    plt.ylabel("O+ fraction")
+    plt.xlabel("Lag (us)")
+    plt.colorbar()
+
+    ne=n.repeat(1e12,100)
+    ti=n.repeat(1500,100)
+    te=n.linspace(1500,4000,100)    
+    mol_frac=n.repeat(1,100)
+    vi=n.repeat(0,100)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=True
+                 )
+    plt.subplot(122)
+    plt.pcolormesh(il.lag*1e6,te,S.real)
+    plt.ylabel("Te")
+    plt.xlabel("Lag (us)")
+    plt.colorbar()
+    
+    
+    plt.show()
+
+    
 if __name__ == "__main__":
+    test_h()
     testti()    
     testte()
     testne()
