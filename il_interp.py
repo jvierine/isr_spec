@@ -1,6 +1,7 @@
 import numpy as n
 import matplotlib.pyplot as plt
 import h5py
+import scipy.interpolate as sint
 
 class ilint:
     def __init__(self,fname="ion_line_interpolate.h5"):
@@ -84,6 +85,7 @@ class ilint:
                 vi=n.array([0.0]),
                 acf=False,
                 normalize=True,
+                interpf=False,
                 debug=False):
         te_ti_ratio_idx=(te/ti - self.te_ti_ratio0)/self.dte_ti_ratio
         # edge cases
@@ -173,7 +175,13 @@ class ilint:
             else:
                 S[i,:]=pwr_scaling_factor[i]*S[i,:]
 
-        return(S)
+        if interpf:
+            funs=[]
+            for i in range(S.shape[0]):
+                funs.append(sint.interp1d(self.doppler_hz,S[i,:],kind="cubic"))
+            return(funs)
+        else:
+            return(S)
         
 
 def testne():
@@ -356,8 +364,106 @@ def test_h():
     
     plt.show()
 
+def example_spectra():
+    
+    il=ilint(fname="ion_line_interpolate.h5")
+    
+    ne=n.repeat(1e11,2)
+    ti=n.repeat(700,2)
+    te=n.repeat(700*1.5,2) 
+    mol_frac=n.array([0,1])
+    vi=n.repeat(0,2)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False,
+                 interpf=True
+                 )
+    dops=n.linspace(-10e3,10e3,num=1000)
+
+    fig,((ax00,ax01),(ax10,ax11))=plt.subplots(2,2,figsize=(16,9),layout="constrained")
+    
+    ax00.plot(dops/1e3,S[1](dops),label="$m_i$=31 (amu)")
+    ax00.plot(dops/1e3,S[0](dops),label="$m_i$=16 (amu)")
+    ax00.set_xlabel("Doppler shift (kHz)")
+    ax00.set_title("$f=440.2$ MHz $T_i=700$ K $T_e/T_i=1.5$")
+    ax00.set_ylabel("Normalized power spectral density")
+    ax00.legend()
+    ax00.set_xlim([-10,10])
+
+
+    ax01.plot(dops/1e3,S[0](dops),label="$n_e=10^{11}$")
+    ax01.plot(dops/1e3,S[0](dops)*10.0,label="$n_e=10^{12}$")
+    ax01.set_xlabel("Doppler shift (kHz)")
+    ax01.set_title("$f=440.2$ MHz $T_i=700$ K $T_e=900$ K $m_i=16$ (amu)")
+    ax01.set_ylabel("Power spectral density")
+    ax01.legend()
+    ax01.set_xlim([-10,10])
+
+
+    ne=n.repeat(1e11,2)
+    ti=n.array([700/2,700])
+    te=n.array([700.0*1.5/2,700*1.5])
+    mol_frac=n.array([0, 0])
+    vi=n.repeat(0,2)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False,
+                 interpf=True
+                 )
+    
+
+    ax10.plot(dops/1e3,S[0](dops),label="$T_i=700$ K")
+    ax10.plot(dops/1e3,S[1](dops),label="$T_i=350$ K")
+    ax10.set_xlabel("Doppler shift (kHz)")
+    ax10.set_title("$f=440.2$ MHz $T_e/T_i=1.5$ K $m_i=16$ (amu)")
+    ax10.set_ylabel("Power spectral density")
+    ax10.legend()
+    ax10.set_xlim([-10,10])
+
+
+    ne=n.repeat(1e11,2)
+    ti=n.array([700,700])
+    te=n.array([700.0*1.5,700*3.0])
+    mol_frac=n.array([0, 0])
+    vi=n.repeat(0,2)
+    
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False,
+                 interpf=True
+                 )
+
+    s0=n.sum(S[0](dops))
+    s1=n.sum(S[1](dops))
+    #(a*s1/s0) = ((1+1.5)/(1+3))
+    #a = (s0/s1)*((1+1.5)/(1+3))    
+    ax11.plot(dops/1e3,S[0](dops),label="$T_e/T_i=1.5$")
+    ax11.plot(dops/1e3,S[1](dops)*(s0/s1)*((1+1.5)/(1+3.0)),label="$T_e/T_i=3$")
+    ax11.set_xlabel("Doppler shift (kHz)")
+    ax11.set_title("$f=440.2$ MHz $T_i=700$ K $m_i=16$ (amu)")
+    ax11.set_ylabel("Power spectral density")
+    ax11.legend()
+    ax11.set_xlim([-10,10])
+    
+    
+    
+    plt.show()
+    
+    
     
 if __name__ == "__main__":
+    example_spectra()
     test_h()
     testti()    
     testte()
