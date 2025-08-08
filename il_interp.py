@@ -14,6 +14,9 @@ class ilint:
         self.te_ti_ratio0=n.min(self.te_ti_ratio)
         self.te_ti_ratio1=n.max(self.te_ti_ratio)
         self.te_ti_ratioN=len(self.te_ti_ratio)
+
+        self.mass0=h["mass0"][()]
+        self.mass1=h["mass1"][()]
         
         self.mol_fracs=h["mol_fracs"][()]
         self.dmol_fracs=n.diff(self.mol_fracs)[0]
@@ -36,6 +39,8 @@ class ilint:
         self.n_lags=int(self.S.shape[3]/2)
         self.lag=n.arange(self.n_lags)/self.sr
 
+        print("Read interpolation table for radar frequency %1.0f MHz\nmass1=%1.1f amu, mass2=%1.1f amu"%(self.radar_freq/1e6,self.mass0,self.mass1))
+
 
         self.S[:,:,:,n.abs(self.doppler_hz)>40e3]=0.0
         
@@ -56,7 +61,6 @@ class ilint:
                 for teti_i in range(self.te_ti_ratioN):
                     for ti_i in range(self.tisN):
                         spec=self.S[fr_i,teti_i,ti_i,:]
-
                         spec[n.abs(self.doppler_hz)>40e3]=0.0
                         nan_idx=n.where(n.isnan(spec))[0]
                         if len(nan_idx) > 0:
@@ -87,6 +91,7 @@ class ilint:
                 normalize=True,
                 interpf=False,
                 debug=False):
+        
         te_ti_ratio_idx=(te/ti - self.te_ti_ratio0)/self.dte_ti_ratio
         # edge cases
         te_ti_ratio_idx[te_ti_ratio_idx<=0]=1e-4
@@ -366,7 +371,7 @@ def test_h():
 
 def example_spectra():
     
-    il=ilint(fname="ion_line_interpolate.h5")
+    il=ilint(fname="ion_line_interpolate_32_16_430_00.h5")
     
     ne=n.repeat(1e11,2)
     ti=n.repeat(700,2)
@@ -384,21 +389,21 @@ def example_spectra():
                  )
     dops=n.linspace(-10e3,10e3,num=1000)
 
-    fig,((ax00,ax01),(ax10,ax11))=plt.subplots(2,2,figsize=(16,9),layout="constrained")
+    fig,((ax00,ax01,ax02),(ax10,ax11,ax12))=plt.subplots(2,3,figsize=(16,9),layout="constrained")
     
     ax00.plot(dops/1e3,S[1](dops),label="$m_i$=31 (amu)")
     ax00.plot(dops/1e3,S[0](dops),label="$m_i$=16 (amu)")
     ax00.set_xlabel("Doppler shift (kHz)")
-    ax00.set_title("$f=440.2$ MHz $T_i=700$ K $T_e/T_i=1.5$")
+    ax00.set_title("$f=%1.1f$ MHz $T_i=700$ K $T_e/T_i=1.5$"%(il.radar_freq/1e6))
     ax00.set_ylabel("Normalized power spectral density")
     ax00.legend()
     ax00.set_xlim([-10,10])
 
 
-    ax01.plot(dops/1e3,S[0](dops),label="$n_e=10^{11}$")
-    ax01.plot(dops/1e3,S[0](dops)*10.0,label="$n_e=10^{12}$")
+    ax01.plot(dops/1e3,S[0](dops),label="$n_e=10^{11}$ (el/m$^3)$")
+    ax01.plot(dops/1e3,S[0](dops)*10.0,label="$n_e=10^{12}$ (el/m$^3$)")
     ax01.set_xlabel("Doppler shift (kHz)")
-    ax01.set_title("$f=440.2$ MHz $T_i=700$ K $T_e=900$ K $m_i=16$ (amu)")
+    ax01.set_title("$f=%1.1f$ (MHz) $T_i=700$ (K) $T_e=900$ (K) $m_i=16$ (amu)"%(il.radar_freq/1e6))
     ax01.set_ylabel("Power spectral density")
     ax01.legend()
     ax01.set_xlim([-10,10])
@@ -420,10 +425,10 @@ def example_spectra():
                  )
     
 
-    ax10.plot(dops/1e3,S[0](dops),label="$T_i=700$ K")
-    ax10.plot(dops/1e3,S[1](dops),label="$T_i=350$ K")
+    ax10.plot(dops/1e3,S[0](dops),label="$T_i=700$ (K)")
+    ax10.plot(dops/1e3,S[1](dops),label="$T_i=350$ (K)")
     ax10.set_xlabel("Doppler shift (kHz)")
-    ax10.set_title("$f=440.2$ MHz $T_e/T_i=1.5$ K $m_i=16$ (amu)")
+    ax10.set_title("$f=%1.1f$ (MHz) $T_e/T_i=1.5$ K $m_i=16$ (amu)"%(il.radar_freq/1e6))
     ax10.set_ylabel("Power spectral density")
     ax10.legend()
     ax10.set_xlim([-10,10])
@@ -451,20 +456,70 @@ def example_spectra():
     ax11.plot(dops/1e3,S[0](dops),label="$T_e/T_i=1.5$")
     ax11.plot(dops/1e3,S[1](dops)*(s0/s1)*((1+1.5)/(1+3.0)),label="$T_e/T_i=3$")
     ax11.set_xlabel("Doppler shift (kHz)")
-    ax11.set_title("$f=440.2$ MHz $T_i=700$ K $m_i=16$ (amu)")
+    ax11.set_title("$f=%1.1f$ MHz $T_i=700$ K $m_i=16$ amu"%(il.radar_freq/1e6))
     ax11.set_ylabel("Power spectral density")
     ax11.legend()
     ax11.set_xlim([-10,10])
     
+
+    ne=n.repeat(1e11,2)
+    ti=n.array([700,700])
+    te=n.array([700.0*1.5,700*1.5])
+    mol_frac=n.array([0, 0])
+    vi=n.array([0,500.0])
+
+    ds=2*il.radar_freq*500.0/3e8
     
+    S=il.getspec(ne=ne,
+                 te=te,
+                 ti=ti,
+                 mol_frac=mol_frac,
+                 vi=vi,
+                 acf=False,
+                 interpf=True
+                 )
+    dops=n.linspace(-40e3,40e3,num=1000)    
+    ax02.plot(dops/1e3,S[0](dops),label="$v_i=0$ (m/s)")
+    ax02.plot(dops/1e3,S[1](dops-ds),label="$v_i=500$ (m/s)")
+    ax02.set_xlabel("Doppler shift (kHz)")
+    ax02.set_title("$f=%1.1f$ MHz $T_i=700$ (K) $T_e/T_i=1.5$ $m_i=16$ (amu)"%(il.radar_freq/1e6))
+    ax02.set_ylabel("Power spectral density")
+    ax02.legend()
+    ax02.set_xlim([-10,10])
+
+
+
+    il2=ilint(fname="ion_line_interpolate_16_1_430_00.h5")    
+    ne=n.repeat(1e11,2)
+    ti=n.array([700,700])
+    te=n.array([700.0*1.5,700*1.5])
+    mol_frac=n.array([1, 0.5])
+    vi=n.array([0,0.0])
+
+    S=il2.getspec(ne=ne,
+                  te=te,
+                  ti=ti,
+                  mol_frac=mol_frac,
+                  vi=vi,
+                  acf=False,
+                  interpf=True
+                  )
     
+    ax12.plot(dops/1e3,S[0](dops),label="O$^{+}=100\%$, H$^{+}=0 \%$")
+    ax12.plot(dops/1e3,S[1](dops),label="O$^{+}=50\%$, H$^{+}=50 \%$")
+    ax12.set_xlabel("Doppler shift (kHz)")
+    ax12.set_title("$f=%1.1f$ MHz $T_i=700$ (K) $T_e/T_i=1.5$"%(il.radar_freq/1e6))
+    ax12.set_ylabel("Power spectral density")
+    ax12.legend()
+    ax12.set_xlim([-40,40])
+    plt.savefig("ppar_ex.png",dpi=150)
     plt.show()
     
     
     
 if __name__ == "__main__":
     example_spectra()
-    test_h()
-    testti()    
-    testte()
-    testne()
+#    test_h()
+ #   testti()    
+  #  testte()
+   # testne()

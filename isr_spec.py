@@ -621,19 +621,18 @@ def il_d():
     plt.show()
 
 
-def il_table(mass0=16.0, mass1=1.0):
+def il_table(mass0=16.0, mass1=1.0, radar_freq=440.2e6):
     """
     Create an interpolation table for ion-line spectra, given a range of plasma-parameters.
     2-ion isr spec
     """
-    n_tr=40
-    n_fr=40
-    n_ti=160
-
+    n_tr=20
+    n_fr=20
+    n_ti=20
     n_freq=512
 
     te_ti_ratios=n.linspace(1,5,num=n_tr)
-    tis=n.linspace(50,4000,num=n_ti)    
+    tis=n.linspace(100,4000,num=n_ti)    
     frs=n.linspace(0,1,num=n_fr)
 
     #
@@ -652,7 +651,7 @@ def il_table(mass0=16.0, mass1=1.0):
     ppar=n.zeros([n_fr,n_tr,n_ti,3],dtype=n.float32)        
 
     for fridx in range(rank,len(frs),size):
-        print(fridx)
+        print("ion fraction %d/%d"%(fridx,len(frs)))
         fr=frs[fridx]
         if fr == 0:
             fr=1e-4
@@ -662,14 +661,14 @@ def il_table(mass0=16.0, mass1=1.0):
         n_atom=1-fr
     
         for idx,tr in enumerate(te_ti_ratios):
-            
+            print("te/ti ratios %d/%d"%(idx,len(te_ti_ratios)))
             for tiidx,ti in enumerate(tis):
                 te=tr*ti
                 plpar={"t_i":[ti,ti],
                        "t_e":te,
                        "m_i":[mass0,mass1],
                        "n_e":1e11,
-                       "freq":440.2e6,
+                       "freq":radar_freq,
                        "B":45000e-9,
                        "alpha":90, # degrees, 0 deg is perp. ion-line insensitive to alpha when alpha not close to 0
                        "ion_fractions":[n_mol,n_atom]}
@@ -677,8 +676,9 @@ def il_table(mass0=16.0, mass1=1.0):
                 il_spec=isr_spectrum(om,plpar=plpar,n_points=1e2,ni_points=1e2)
                 S[fridx,idx,tiidx,:]=il_spec
                 P[fridx,idx,tiidx]=n.sum(il_spec)
-    ho=h5py.File("ion_line_interpolate_%d_%d_%02d.h5"%(mass0,mass1,rank),"w")
-    ho["S"]=S
+                
+    ho=h5py.File("ion_line_interpolate_%d_%d_%03d_%02d.h5"%(mass0,mass1,int(radar_freq/1e6),rank),"w")
+    ho["S"]=n.array(S,dtype=n.float32)
     ho["mass0"]=mass0
     ho["mass1"]=mass1
     ho["te_ti_ratios"]=te_ti_ratios
@@ -686,7 +686,7 @@ def il_table(mass0=16.0, mass1=1.0):
     ho["tis"]=tis
     ho["om"]=om
     ho["sample_rate"]=60e3
-    ho["freq"]=440.2e6
+    ho["freq"]=radar_freq
     ho["B"]=45000e-9
     ho["ne"]=1e11
     ho.close()
@@ -697,7 +697,12 @@ def il_table(mass0=16.0, mass1=1.0):
     
   
 if __name__ == "__main__":
-    il_table()
+
+    # arecibo
+    il_table(mass0=32.0, mass1=16.0, radar_freq=430.0e6)
+    il_table(mass0=16.0, mass1=1.0, radar_freq=430.0e6)    
+        
+#    il_table()
     exit(0)
     
     gl_test()            
